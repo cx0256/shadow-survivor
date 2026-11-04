@@ -67,21 +67,30 @@ CLAUDE.md
 /.codex
 /.opencode
 
+/.maker-preview/
+
 # >>> TapTap Maker AI dev kit (local only) >>>
 .DS_Store
-.agents\skills\custom-lobby/
-.agents\skills\materials/
-.agents\skills\nvg-resolution-mode/
-.agents\skills\online-system-notification/
-.agents\skills\run-lua-validate/
-.agents\skills\setup-achievements/
-.agents\skills\setup-ads/
-.agents\skills\setup-fsm/
-.agents\skills\skill-creator/
-.agents\skills\sprite-gen/
-.agents\skills\ui-astroon/
-.agents\skills\ui-brawlforge/
-.agents\skills\ui-pixelforge/
+.agents/skills/anim-info/
+.agents/skills/blender/
+.agents/skills/convert-panorama/
+.agents/skills/custom-lobby/
+.agents/skills/import-fbx/
+.agents/skills/import-glb/
+.agents/skills/materials/
+.agents/skills/model-info/
+.agents/skills/nvg-resolution-mode/
+.agents/skills/online-system-notification/
+.agents/skills/run-lua-headless/
+.agents/skills/run-lua-validate/
+.agents/skills/setup-achievements/
+.agents/skills/setup-ads/
+.agents/skills/setup-fsm/
+.agents/skills/skill-creator/
+.agents/skills/sprite-gen/
+.agents/skills/ui-astroon/
+.agents/skills/ui-brawlforge/
+.agents/skills/ui-pixelforge/
 .claude/
 .cli/
 .codex/
@@ -100,4 +109,3 @@ templates/
 tools/
 urhox-libs/
 # <<< TapTap Maker AI dev kit (local only) <<<
-/.maker-preview/

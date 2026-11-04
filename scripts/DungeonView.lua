@@ -25,6 +25,56 @@ local function text(vg,x,y,value,size,c)
     nvgFillColor(vg,color(c)) nvgText(vg,x,y,tostring(value))
 end
 
+-- Floor objectives share their exact radius with simulation. Keep them below
+-- actors and hostile warnings so a reward never hides the next attack.
+local function drawTrial(vg,g)
+    local trial=g.trial
+    if not trial then return end
+    if trial.kind=="rift" and trial.state=="active" then
+        local x,y,r=trial.x,trial.y,trial.r
+        local progress=math.max(0,math.min(1,trial.progress/trial.required))
+        local inside=(g.player.x-x)^2+(g.player.y-y)^2<=r*r
+        circle(vg,x,y,r,{111,200,167,inside and 28 or 13})
+        ring(vg,x,y,r,{111,200,167,160},2)
+        ring(vg,x,y,r-7,{74,125,108,90},1)
+        if progress>0 then
+            nvgBeginPath(vg)
+            for i=0,32 do
+                local a=-math.pi/2+math.pi*2*progress*i/32
+                local px,py=x+math.cos(a)*(r-4),y+math.sin(a)*(r-4)
+                if i==0 then nvgMoveTo(vg,px,py) else nvgLineTo(vg,px,py) end
+            end
+            nvgStrokeColor(vg,nvgRGBA(152,239,198,230)) nvgStrokeWidth(vg,4) nvgStroke(vg)
+        end
+        for i=0,3 do
+            local a=i*math.pi/2+math.pi/4
+            line(vg,x+math.cos(a)*10,y+math.sin(a)*10,x+math.cos(a)*19,y+math.sin(a)*19,{132,218,180,180},2)
+        end
+        text(vg,x,y-8,"封印裂隙",15,{174,238,209})
+        text(vg,x,y+12,string.format("%.1f / %.1fs",trial.progress,trial.required),13,{225,238,219})
+        text(vg,x,math.max(112,y-r-14),"进入圈内 · 剩余 "..math.ceil(trial.remaining).."s",13,{150,214,185})
+    elseif trial.exit and not trial.exit.used then
+        local gate=trial.exit
+        local treasure=false
+        for _,drop in ipairs(g.drops) do
+            if drop.treasure and not drop.collected then treasure=true break end
+        end
+        local c=treasure and {230,173,86} or gate.armed and {142,225,197} or {190,169,119}
+        if not gate.armed then
+            ring(vg,gate.x,gate.y,gate.armRadius,{c[1],c[2],c[3],145},2)
+        end
+        circle(vg,gate.x,gate.y,gate.r,{c[1],c[2],c[3],22})
+        ring(vg,gate.x,gate.y,gate.r,{c[1],c[2],c[3],180},2)
+        ring(vg,gate.x,gate.y,gate.r-8+math.sin(g.time*3)*2,{c[1],c[2],c[3],90},1)
+        line(vg,gate.x-8,gate.y+4,gate.x,gate.y-5,c,2)
+        line(vg,gate.x,gate.y-5,gate.x+8,gate.y+4,c,2)
+        local label=gate.armed and "内圈停留0.6秒 · 结束本波" or "先走出外圈，再回内圈"
+        local labelRadius=gate.armed and gate.r or gate.armRadius
+        text(vg,math.max(165,math.min(795,gate.x)),math.max(112,gate.y-labelRadius-14),label,13,c)
+        if treasure then text(vg,gate.x,math.min(514,gate.y+gate.r+14),"宝箱尚未拾取",12,{235,181,100}) end
+    end
+end
+
 function View.Layout()
     local dpr=math.max(1,graphics:GetDPR())
     local lw,lh=graphics:GetWidth()/dpr,graphics:GetHeight()/dpr
@@ -196,6 +246,15 @@ end
 
 local function drawPlayer(vg,g)
     local p=g.player
+    if (g.counterTime or 0)>0 then
+        ring(vg,p.x,p.y,25+math.sin(g.time*12),{142,225,197,200},2)
+        line(vg,p.x-6,p.y-58,p.x,p.y-64,{174,245,216},2)
+        line(vg,p.x,p.y-64,p.x+6,p.y-58,{174,245,216},2)
+    end
+    if (g.counterFlash or 0)>0 then
+        local fade=math.min(1,g.counterFlash/0.35)
+        ring(vg,p.x,p.y,25+(1-fade)*30,{174,245,216,math.floor(190*fade)},3)
+    end
     if g.overdriveTime>0 then
         circle(vg,p.x,p.y-12,31,{247,171,61,35})
         ring(vg,p.x,p.y-12,31+math.sin(g.time*20)*3,{255,202,100,190},2)
@@ -266,6 +325,7 @@ function View.Draw(vg,g)
     nvgTranslate(vg,math.sin(g.time*95)*g.shake,math.cos(g.time*83)*g.shake*0.65)
     View.Room(vg,g)
     nvgScissor(vg,48,96,864,432)
+    drawTrial(vg,g)
     for _,h in ipairs(g.hazards) do
         circle(vg,h.x,h.y-10,h.r,{215,68,58,45})
         ring(vg,h.x,h.y-10,h.r,{249,106,76,220},2)
@@ -339,9 +399,10 @@ function View.Draw(vg,g)
     end
     nvgRestore(vg)
     if g.touchActive and g.state=="playing" then
-        circle(vg,g.stickX,g.stickY,45,{165,194,215,22})
-        ring(vg,g.stickX,g.stickY,45,{165,194,215,80},2)
-        circle(vg,g.stickX+g.stickMX*30,g.stickY+g.stickMY*30,17,{179,215,228,135})
+        local unit=1/layout.scale -- same screen-space radius as touch input
+        circle(vg,g.stickX,g.stickY,45*unit,{165,194,215,22})
+        ring(vg,g.stickX,g.stickY,45*unit,{165,194,215,80},2*unit)
+        circle(vg,g.stickX+g.stickMX*30*unit,g.stickY+g.stickMY*30*unit,17*unit,{179,215,228,135})
     end
     if g.bannerTime>0 and g.state=="playing" then
         rect(vg,290,110,380,32,{14,11,10,195}) text(vg,480,126,g.banner,17,{230,202,144})

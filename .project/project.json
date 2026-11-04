@@ -1,0 +1,56 @@
+{
+  "$schema": "../schemas/project.schema.json",
+  "project_id": "m_5srf",
+  "author": {
+    "id": "1650865735"
+  },
+  "entry": "main.lua",
+  "version": "1.0.4",
+  "taptap_publish": {
+    "title": "暗影幸存者",
+    "description": "《暗影幸存者》是一款短局生存肉鸽。带上剑、弓或法杖，在八波怪潮中走位求生。追击携宝怪、守住裂隙，完成目标后选择提前撤离，或留下继续赚取材料。通过波间商店购买装备、合成武器，打造血月回斩、追魂弹射或余烬蔓延进化流派，挑战最终首领。",
+    "category": "action",
+    "screen_orientation": "landscape",
+    "collection_type": "sce",
+    "trial_note": "我们想做一款空闲时能开一盘，又有走位和搭配取舍的生存游戏。武器自动攻击，你负责躲避、追宝和把握爆发时机。翻滚躲过攻击后，还能获得短暂的反击机会。欢迎反馈武器手感、手机操作和构筑体验，我们会继续打磨。",
+    "app_platforms": "1,2",
+    "developer_id": 502787,
+    "gameplay_demo_video_source": "https://tapcode-sce.spark.xd.com/videos/m_5srf/1793060185884-rec_3557907e-bb22-435b-835e-aaf7013b1b57.mp4",
+    "app_id": 1003383,
+    "miniapp_id": "tapmcyyt4s4n95xb2m",
+    "release_phase": "public_test"
+  },
+  "assets": {
+    "icon": "./game_material/ICON_2026-10-27T00-17-51_01.png",
+    "screenshots": [
+      "./game_material/SCREENSHOT_2026-10-27T00-17-51_01.png",
+      "./game_material/SCREENSHOT_2026-10-27T00-17-51_02.png",
+      "./game_material/SCREENSHOT_2026-10-27T00-17-51_03.png"
+    ],
+    "promotional_image": "./game_material/PROMO_2026-10-27T00-17-51_01.jpg",
+    "source_screenshots": [
+      "_uploads/f201e0d1fd338d98fd9108720a13712e402ae553ee11b03ba245f4dfa5cd2180.png",
+      "_uploads/17456875cec919f578ea30451986e0f75c68ab39f34df6c1997fd3a9bb466532.png",
+      "_uploads/fdf2460791f834d51ff7db7f11ddaf221deff770175a50388c0da12822ca9e59.png"
+    ],
+    "icon_url": "https://tapcode-sce.spark.xd.com/assets/game_material/暗影幸存者/ICON_2026-10-27T00-17-51_01.png",
+    "screenshot_urls": [
+      "https://tapcode-sce.spark.xd.com/assets/game_material/暗影幸存者/SCREENSHOT_2026-10-27T00-17-51_01.png",
+      "https://tapcode-sce.spark.xd.com/assets/game_material/暗影幸存者/SCREENSHOT_2026-10-27T00-17-51_02.png",
+      "https://tapcode-sce.spark.xd.com/assets/game_material/暗影幸存者/SCREENSHOT_2026-10-27T00-17-51_03.png"
+    ],
+    "promotional_image_url": "https://tapcode-sce.spark.xd.com/assets/game_material/暗影幸存者/PROMO_2026-10-27T00-17-51_01.jpg",
+    "cover_horizontal": "./game_material/COVER_HORIZONTAL_2026-10-27T00-18-19_01.png",
+    "cover_horizontal_url": "https://tapcode-sce.spark.xd.com/assets/game_material/暗影幸存者/COVER_HORIZONTAL_2026-10-27T00-18-19_01.png",
+    "cover_vertical": "./game_material/COVER_VERTICAL_2026-10-27T00-18-42_01.png",
+    "cover_vertical_url": "https://tapcode-sce.spark.xd.com/assets/game_material/暗影幸存者/COVER_VERTICAL_2026-10-27T00-18-42_01.png"
+  },
+  "metadata": {
+    "updated_at": "2026-11-03T05:56:52.731Z",
+    "promo_dependent_hash": "c484d7bb5ef663095d50f3feb4f588f6"
+  },
+  "test_qrcode": {
+    "url": "https://tapcode-sce.spark.xd.com/qrcode/m_5srf_1793685412583.png",
+    "generated_at": "2026-11-03T05:56:52.731Z"
+  }
+}

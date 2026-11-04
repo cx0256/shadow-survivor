@@ -28,6 +28,7 @@ local Feel=require "CombatFeel"
 ---@field Ignite fun(g: table): boolean
 ---@type RunDirectorAPI
 local Director=require "RunDirector"
+local Trials=require "CombatTrials"
 ---@class WeaponEvolutionsAPI
 ---@field Init fun(g: table)
 ---@field Status fun(g: table, kind: number): table
@@ -48,17 +49,6 @@ Dungeon.Weapons = {
     {id="bow", name="游侠长弓", detail="高速箭矢 · 穿透两名敌人", range=460, cooldown=0.88, damage=0.95, color={111,213,173}},
     {id="staff", name="余烬法杖", detail="火球命中 · 范围爆炸", range=365, cooldown=1.20, damage=1.40, color={238,133,85}},
 }
-Dungeon.Talents = {
-    {name="锋锐", desc="攻击力 +5", stat="atk", value=5},
-    {name="坚韧", desc="生命上限 +28，并回复28点", stat="hp", value=28},
-    {name="疾行", desc="移动速度 +22", stat="speed", value=22},
-    {name="连斩", desc="攻击速度 +18%", stat="haste", value=0.18},
-    {name="汲取", desc="造成伤害的5%回复生命", stat="leech", value=0.05},
-    {name="烈焰", desc="攻击附加持续3秒的灼烧", stat="burn", value=7},
-    {name="爆裂", desc="击杀触发65范围爆炸", stat="explode", value=1},
-    {name="铁壁", desc="受到的伤害减少2点", stat="def", value=2},
-    {name="暴击", desc="暴击概率 +10%", stat="crit", value=0.10},
-}
 local ENEMIES = {
     skeleton={hp=21,atk=10,speed=108,r=14,xp=4,sprite="SKEL"},
     bat={hp=12,atk=8,speed=172,r=12,xp=3,sprite="BAT"},
@@ -69,7 +59,7 @@ local ENEMIES = {
 }
 local function clamp(v,a,b) return math.max(a,math.min(b,v)) end
 local function distance(a,b) return math.sqrt((a.x-b.x)^2+(a.y-b.y)^2) end
-local function hunterLocked(e) return e.kind=="hunter" and (e.windup>0 or e.charge>0) end
+local function chargeLocked(e) return (e.kind=="hunter" or e.kind=="boss") and (e.windup>0 or e.charge>0) end
 local function number(v,default,max)
     if type(v)~="number" or v~=v then return default end
     return clamp(math.floor(v),0,max or 100000000)
@@ -97,8 +87,6 @@ function Dungeon:Init(saved)
     self.effects={}
     self.floats={}
     self.pillars={}
-    self.choices={}
-    self.talents={}
     self.equipment={}
     self.pendingLoot={}
     self.portal=false
@@ -109,17 +97,18 @@ function Dungeon:Init(saved)
     self.gold=0
     self.kills=0
     self.settled=false
+    self.newBestWave=false
     self.saveDirty=false
-    self.pendingLevels=0
     self.player={x=480,y=486,r=15,hp=150,maxHp=150,atk=20,speed=245,haste=1,leech=0,burn=0,explode=0,def=2,crit=0.08,
-        level=1,xp=0,xpNext=26,aim=-math.pi/2,attackCd=0,invuln=0,dashTime=0,dashCd=0,dashX=0,dashY=-1,
+        aim=-math.pi/2,attackCd=0,invuln=0,dashTime=0,dashCd=0,dashX=0,dashY=-1,
         whirlCd=0,bladeCd=0,potions=3,hit=0,moving=false,walk=0,vx=0,vy=0}
     self.waveActive=false self.loadout={} self.returnState="shop"
     Survival.Init(self)
     Feel.Init(self)
     Director.Init(self)
+    Trials.Init(self)
+    self.counterTime=0 self.counterRecovery=0 self.counterFlash=0 self.perfectDodges=0
     WeaponEvolutions.Init(self)
-    self.player.xpNext=12
 end
 
 function Dungeon:Start() Survival.Start(self) end
@@ -201,46 +190,6 @@ function Dungeon:AddGold(amount)
     self.earnedGold=self.earnedGold+amount
 end
 
-function Dungeon:GainXp(amount)
-    local p=self.player
-    p.xp=p.xp+amount
-    while p.xp>=p.xpNext do
-        p.xp=p.xp-p.xpNext
-        p.level=p.level+1
-        p.xpNext=math.floor(p.xpNext*1.22+10)
-        p.maxHp=p.maxHp+6
-        p.hp=math.min(p.maxHp,p.hp+6)
-        self.pendingLevels=self.pendingLevels+1
-    end
-end
-
-function Dungeon:PresentTalent()
-    if self.state~="playing" or self.pendingLevels<=0 or self.waveActive then return end
-    self.choices={}
-    local pool={}
-    for i=1,#Dungeon.Talents do pool[i]=i end
-    for _=1,3 do
-        local index=table.remove(pool,math.random(#pool))
-        self.choices[#self.choices+1]=Dungeon.Talents[index]
-    end
-    self.state="talent"
-end
-
-function Dungeon:ChooseTalent(index)
-    if self.state~="talent" or not self.choices[index] then return end
-    local talent=self.choices[index]
-    local p=self.player
-    if talent.stat=="hp" then p.maxHp=p.maxHp+talent.value p.hp=math.min(p.maxHp,p.hp+talent.value)
-    else p[talent.stat]=p[talent.stat]+talent.value end
-    p.crit=math.min(0.85,p.crit)
-    self.talents[#self.talents+1]=talent.name
-    self.pendingLevels=self.pendingLevels-1
-    self.choices={}
-    self.state="playing"
-    self:PresentTalent()
-    if self.pendingLevels==0 then self.state=self.returnState end
-end
-
 function Dungeon:TrimDrops()
     -- Only routine materials may be credited remotely. Special treasure and
     -- healing stay on the field, including when they are the oldest drops.
@@ -269,7 +218,10 @@ function Dungeon:Kill(e)
     if self.player.explode>0 then
         self:Effect(e.x,e.y,65,"fire")
         for _,other in ipairs(self.enemies) do
-            if not other.dead and distance(e,other)<=65+other.r then self:DamageEnemy(other,18*self.player.explode,false) end
+            if not other.dead and distance(e,other)<=65+other.r
+                and self:WallFraction(e.x,e.y,other.x,other.y,2)>=1 then
+                self:DamageEnemy(other,18*self.player.explode,false)
+            end
         end
     end
 end
@@ -293,7 +245,20 @@ end
 
 function Dungeon:Hurt(damage)
     local p=self.player
-    if self.state~="playing" or p.invuln>0 or p.dashTime>0 then return end
+    if self.state~="playing" then return end
+    -- A real attack must intersect the roll. Walking through ordinary damage
+    -- immunity or rolling through empty space never earns a counterattack.
+    if p.dashTime>0 or p.dashingThisFrame then
+        if not p.dashRewarded and self.counterRecovery<=0 and damage>0 then
+            p.dashRewarded=true
+            self.counterTime=2 self.counterRecovery=3 self.counterFlash=0.35
+            self.perfectDodges=self.perfectDodges+1
+            self:Float(p.x,p.y-52,"完美闪避 · 反击！",{121,245,206})
+            self:Effect(p.x,p.y,58,"counter")
+        end
+        return
+    end
+    if p.invuln>0 then return end
     local amount=math.max(1,math.floor(damage-p.def))
     p.hp=math.max(0,p.hp-amount)
     p.invuln=0.55 p.hit=0.24
@@ -310,6 +275,7 @@ function Dungeon:Finish(cleared)
     self.save.kills=self.save.kills+self.kills
     self.save.gold=self.save.gold+self.gold
     self.save.bestFloor=math.max(self.save.bestFloor,self.floor)
+    self.newBestWave=self.wave>self.save.bestWave
     self.save.bestWave=math.max(self.save.bestWave,self.wave)
     self.saveDirty=true
 end
@@ -365,6 +331,12 @@ function Dungeon:Attack(angle,slot)
     local w=slot or self.loadout[1]
     if not w then return end
     local stats=self:WeaponStats(w)
+    if self.counterTime>0 then
+        stats.damage=stats.damage*1.8
+        self.counterTime=0
+        self:Effect(p.x,p.y,72,"counter")
+        self:Float(p.x,p.y-42,"反击 ×1.8",{121,245,206})
+    end
     p.aim=angle w.angle=angle
     if w.kind==1 then
         Feel.Sword(self,w,angle,stats)
@@ -385,6 +357,7 @@ function Dungeon:Cast(skill)
         self:Effect(p.x,p.y,50,"heal")
     elseif skill=="dash" and p.dashCd<=0 then
         p.dashTime=0.17 p.dashCd=1.2 p.invuln=0.3
+        p.dashRewarded=false
     elseif skill=="whirl" and p.whirlCd<=0 then
         p.whirlCd=5 p.invuln=math.max(p.invuln,0.6)
         self:Effect(p.x,p.y,145,"whirl")
@@ -396,7 +369,6 @@ function Dungeon:Cast(skill)
     elseif skill=="blade" and p.bladeCd<=0 then
         p.bladeCd=6 self:Shoot("blade",p.aim,p.atk*2.2)
     end
-    self:PresentTalent()
 end
 
 function Dungeon:UpdateShots(dt)
@@ -454,7 +426,7 @@ function Dungeon:UpdateEnemy(e,dt)
     if e.dead then return end
     -- Keep the lock for the entire update, including the frame that a charge
     -- ends, so the later crowd separation cannot move its final contact point.
-    e.laneLocked=hunterLocked(e)
+    e.laneLocked=chargeLocked(e)
     e.hit=math.max(0,e.hit-dt) e.born=e.born+dt
     if e.burnTime>0 then
         local active=math.min(dt,e.burnTime)
@@ -520,13 +492,20 @@ function Dungeon:UpdateEnemy(e,dt)
             if e.windup<=0 then e.charge=0.55 end
             return
         elseif e.charge>0 then
-            e.charge=e.charge-dt
-            self:Move(e,e.chargeX*420*dt,e.chargeY*420*dt)
+            local travel=math.min(420*math.min(dt,e.charge),e.chargeDistance)
+            e.x=e.x+e.chargeX*travel e.y=e.y+e.chargeY*travel
+            e.chargeDistance=math.max(0,e.chargeDistance-travel)
+            e.charge=math.max(0,e.charge-dt)
+            if e.chargeDistance<=0.0001 then e.charge=0 end
             if distance(e,p)<e.r+p.r+7 then self:Hurt(e.atk*1.4) end
             return
         elseif e.bossCd<=0 then
             e.bossCd=e.hp<e.maxHp/2 and 2.3 or 3.5
             e.windup=0.85 e.chargeX=math.cos(a) e.chargeY=math.sin(a)
+            local reach=420*0.55
+            e.chargeDistance=reach*self:WallFraction(e.x,e.y,
+                e.x+e.chargeX*reach,e.y+e.chargeY*reach,e.r)
+            e.laneLocked=true e.kickX=0 e.kickY=0
             return
         end
     end
@@ -557,10 +536,25 @@ function Dungeon:UpdateEnemy(e,dt)
 end
 
 function Dungeon:Update(dt,mx,my)
+    -- Consume all elapsed time in safe collision steps, including at 15/20 FPS.
+    -- Stop immediately at a menu or terminal state; shopping never catches up.
+    if dt<=0 then return end
+    if self.state~="playing" then self.time=self.time+dt return end
+    local steps=math.max(1,math.ceil(dt/0.034))
+    local step=dt/steps
+    for _=1,steps do
+        self:Step(step,mx,my)
+        if self.state~="playing" then break end
+    end
+end
+
+function Dungeon:Step(dt,mx,my)
     self.time=self.time+dt
     if self.state~="playing" then return end
-    dt=math.min(dt,0.034)
     self.runTime=self.runTime+dt
+    self.counterTime=math.max(0,self.counterTime-dt)
+    self.counterRecovery=math.max(0,self.counterRecovery-dt)
+    self.counterFlash=math.max(0,self.counterFlash-dt)
     self.bannerTime=math.max(0,self.bannerTime-dt)
     local p=self.player
     local previousX,previousY=p.x,p.y
@@ -573,7 +567,8 @@ function Dungeon:Update(dt,mx,my)
         p.dashX=mx/moveLength p.dashY=my/moveLength
         p.aim=math.atan(my,mx) p.walk=p.walk+dt*10
     end
-    if p.dashTime>0 then
+    p.dashingThisFrame=p.dashTime>0
+    if p.dashingThisFrame then
         p.dashTime=math.max(0,p.dashTime-dt)
         self:Move(p,p.dashX*720*dt,p.dashY*720*dt)
     else self:Move(p,mx*p.speed*dt,my*p.speed*dt) end

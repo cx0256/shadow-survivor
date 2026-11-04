@@ -66,6 +66,21 @@ local function objective(g)
             if value>best then best=value tx=drop.x ty=drop.y end
         end
     end
+    if g.testRaider and g.trial then
+        local trial=g.trial
+        if trial.state=="active" then return trial.x,trial.y end
+        if trial.exit and not trial.exit.used then
+            local gate=trial.exit
+            if gate.armed then return gate.x,gate.y end
+            local dx,dy=unit(p.x-gate.x,p.y-gate.y)
+            if dx==0 and dy==0 then dx=1 end
+            for i=0,15 do
+                local a=math.atan(dy,dx)+i*math.pi/8
+                local x,y=gate.x+math.cos(a)*90,gate.y+math.sin(a)*90
+                if not g:HitsWall(x,y,p.r) then return x,y end
+            end
+        end
+    end
     return tx,ty
 end
 
@@ -75,6 +90,7 @@ end
 local function adaptive(g)
     local p=g.player
     local tx,ty=objective(g)
+    if g.testRaider and length(tx-p.x,ty-p.y)<8 then return 0,0 end
     local gx,gy=unit(tx-p.x,ty-p.y)
     local bestScore,bx,by=-math.huge,0,0
     for i=0,15 do
@@ -183,14 +199,6 @@ local function shop(g,t,enableRecipes)
     assert(g:BeginWave(),"engagement shop must begin next wave")
 end
 
-local function talent(g)
-    local choice=1
-    for i,t in ipairs(g.choices) do
-        if t.stat=="atk" or t.stat=="haste" or t.stat=="explode" then choice=i break end
-    end
-    g:ChooseTalent(choice)
-end
-
 local function invariant(g)
     local p=g.player
     assert(#g.loadout>=1 and #g.loadout<=6,"engagement owns 1..6 weapons")
@@ -220,22 +228,23 @@ DungeonApp.onReady=function()
         for _,strategy in ipairs(strategies) do
             if runs>=maxRuns then break end
             assert(type(seed)=="number" and seed==seed,"engagement seed is numeric")
-            assert(strategy=="circle" or strategy=="eager" or strategy=="adaptive","known engagement strategy")
+            assert(strategy=="circle" or strategy=="eager" or strategy=="adaptive" or strategy=="raider","known engagement strategy")
             math.randomseed(seed)
             local g=Dungeon.New({})
             g:SetWeapon(starter) g.role=role g:Start()
+            g.testRaider=strategy=="raider"
             local t={seed=seed,strategy=strategy,starter=starter,role=role,
                 damageTaken=0,potions=0,skillsCast=0,forgeClaimed=0,firstKillAt=-1}
-            t.comparison=strategy=="adaptive" and "movement+E+J+K+F+dash"
+            t.comparison=strategy=="raider" and "visible objectives+exit+adaptive actions"
+                or strategy=="adaptive" and "movement+E+J+K+F+dash"
                 or strategy=="eager" and "circle+E" or "circle"
             local frames,menus=0,0
             while g.state~="dead" and g.state~="win" and frames<maxFrames do
                 invariant(g)
-                if g.state=="talent" then talent(g) menus=menus+1
-                elseif g.state=="shop" then shop(g,t,config.recipes~=false) menus=menus+1
+                if g.state=="shop" then shop(g,t,config.recipes~=false) menus=menus+1
                 elseif g.state=="playing" then
                     local dx,dy
-                    if strategy=="adaptive" then dx,dy=adaptive(g) actions(g,t)
+                    if strategy=="adaptive" or strategy=="raider" then dx,dy=adaptive(g) actions(g,t)
                     else
                         dx,dy=circle(g)
                         if strategy=="eager" and g.frenzyCharge>=8 and (g.burstRecovery or 0)<=0 then
@@ -258,6 +267,7 @@ DungeonApp.onReady=function()
             t.burstImmediateKills=g.burstImmediateKills or 0
             t.frames=frames t.weapons=#g.loadout t.items=#g.items t.potionsRemaining=g.player.potions
             t.materials=g.earnedGold
+            t.trialWins=g.trialWins t.trialTimeSaved=g.trialTimeSaved t.perfectDodges=g.perfectDodges
             t.maxWeaponTier=0
             for _,w in ipairs(g.loadout) do t.maxWeaponTier=math.max(t.maxWeaponTier,w.tier) end
             t.recipesEnabled=config.recipes~=false

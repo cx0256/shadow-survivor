@@ -9,11 +9,7 @@ DungeonApp.onReady=function()
     local g=Dungeon.New({}) g:SetWeapon(rawget(_G,"DungeonBalanceStarter") or 2) g:Start()
     local frames=0
     while g.state~="dead" and g.state~="win" and frames<10000 do
-        if g.state=="talent" then
-            local choice=1
-            for i,t in ipairs(g.choices) do if t.stat=="atk" or t.stat=="haste" then choice=i break end end
-            g:ChooseTalent(choice)
-        elseif g.state=="shop" then
+        if g.state=="shop" then
             for i,offer in ipairs(g.shop) do
                 if offer.type=="weapon" then g:BuyShop(i) end
             end
@@ -53,8 +49,7 @@ DungeonApp.onReady=function()
     local idle=Dungeon.New({}) idle:SetWeapon(2) idle:Start()
     local idleFrames=0
     while idle.state~="dead" and idle.state~="win" and idleFrames<10000 do
-        if idle.state=="talent" then idle:ChooseTalent(1)
-        elseif idle.state=="shop" then idle:BeginWave()
+        if idle.state=="shop" then idle:BeginWave()
         else idle:Update(0.034,0,0) idleFrames=idleFrames+1 end
     end
     assert(idle.state=="dead","standing still without upgrades must not auto-clear eight waves")

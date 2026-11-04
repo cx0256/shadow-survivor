@@ -12,7 +12,10 @@ local View=require "DungeonView"
 ---@type DungeonUIAPI
 local HUD=require "DungeonUI"
 local SFX=require "CombatAudio"
+local ProgressSave=require "ProgressSave"
 local audioRunTime=0
+local SAVE_PATH="shadow-dungeon-v2.json"
+local saveGeneration,saveRetry=0,0
 
 -- App is also the controlled-entry seam for local runtime acceptance tests.
 DungeonApp={game=Dungeon.New({}),testing=false,ui={},onReady=function() end,onFrame=function(_dt) end}
@@ -20,36 +23,39 @@ DungeonApp={game=Dungeon.New({}),testing=false,ui={},onReady=function() end,onFr
 local vg=nil
 ---@type table
 local hud={}
-local stick={id=-1,x=0,y=0,mx=0,my=0}
+local stick={id=-1,x=0,y=0,mx=0,my=0,px=0,py=0}
 
-local function LoadSave()
-    local data={}
-    if fileSystem:FileExists("shadow-dungeon-v2.json") then
-        local file=File("shadow-dungeon-v2.json",FILE_READ)
-        if file:IsOpen() then
-            local ok,result=pcall(cjson.decode,file:ReadString())
-            file:Close()
-            if ok and type(result)=="table" then data=result end
-        end
-    end
-    return data
+local function ReleaseMovement()
+    stick.id=-1 stick.mx=0 stick.my=0
 end
 
-local function SaveProgress()
+local function SaveProgress(dt)
     local game=DungeonApp.game
     if not game.saveDirty or DungeonApp.testing then return end
-    local file=File("shadow-dungeon-v2.json",FILE_WRITE)
-    if file:IsOpen() then
-        file:WriteString(cjson.encode(game.save)) file:Close()
+    local retrying=saveRetry>0
+    if dt then
+        saveRetry=math.max(0,saveRetry-dt)
+        if saveRetry>0 then return end
+    end
+    local generation,reason=ProgressSave.Write(SAVE_PATH,game.save,saveGeneration)
+    if generation then
+        saveGeneration,saveRetry=generation,0
         game.saveDirty=false
+        if retrying then print("[DungeonSave] recovered") end
+    else
+        saveRetry=1
+        if not retrying then print("[DungeonSave] retry_pending "..reason) end
     end
 end
 
 function Start()
+    ReleaseMovement()
     graphics.windowTitle="暗影幸存者 · TapTap 制造"
     input.mouseVisible=true
     input.mouseMode=MM_FREE
-    DungeonApp.game=Dungeon.New(LoadSave())
+    local saved,generation=ProgressSave.Load(SAVE_PATH)
+    saveGeneration,saveRetry=generation,0
+    DungeonApp.game=Dungeon.New(saved)
     SFX.Init()
     -- Keep UI native to Maker; raw NanoVG is reserved for arena/game effects.
     UI.Init({theme="default-dark",scale=UI.Scale.DEFAULT,
@@ -62,6 +68,8 @@ function Start()
     SubscribeToEvent("Update","HandleDungeonUpdate")
     SubscribeToEvent("KeyDown","HandleDungeonKeyDown")
     SubscribeToEvent("InputFocus","HandleDungeonFocus")
+    SubscribeToEvent("TouchBegin","HandleDungeonTouchBegin")
+    SubscribeToEvent("TouchEnd","HandleDungeonTouchEnd")
     print("[Dungeon] Ready: sword / bow / staff; local single player")
     DungeonApp.onReady()
 end
@@ -77,26 +85,45 @@ end
 ---@param eventData InputFocusEventData
 function HandleDungeonFocus(eventType,eventData)
     if eventData["Focus"]:GetBool() then return end
-    stick.id=-1 stick.mx=0 stick.my=0
+    ReleaseMovement()
     if not DungeonApp.testing and DungeonApp.game.state=="playing" then DungeonApp.game.state="paused" end
+    SaveProgress()
+end
+
+---@param eventType string
+---@param eventData TouchBeginEventData
+function HandleDungeonTouchBegin(eventType,eventData)
+    if stick.id~=-1 then return end
+    local x,y=eventData["X"]:GetInt(),eventData["Y"]:GetInt()
+    if not hud:CanStartMovement(x,y) then return end
+    stick.id=eventData["TouchID"]:GetInt()
+    stick.px,stick.py=x,y
+    stick.x,stick.y=View.ToArena(x,y)
+end
+
+---@param eventType string
+---@param eventData TouchEndEventData
+function HandleDungeonTouchEnd(eventType,eventData)
+    if eventData["TouchID"]:GetInt()==stick.id then ReleaseMovement() end
 end
 
 local function TouchMovement()
+    local g=DungeonApp.game
     local found=false
-    for i=0,input.numTouches-1 do
-        local t=input:GetTouch(i)
-        local x,y=View.ToArena(t.position.x,t.position.y)
-        if stick.id==t.touchID then
-            local dx,dy=x-stick.x,y-stick.y
-            local length=math.sqrt(dx*dx+dy*dy)
-            stick.mx=dx/math.max(45,length) stick.my=dy/math.max(45,length)
-            found=true
-        elseif stick.id==-1 and x<350 and y>330 and y<550 and DungeonApp.game.state=="playing" then
-            stick.id=t.touchID stick.x=x stick.y=y stick.mx=0 stick.my=0 found=true
+    if g.state=="playing" and stick.id~=-1 then
+        for i=0,input.numTouches-1 do
+            local t=input:GetTouch(i)
+            if stick.id==t.touchID then
+                local dpr=math.max(1,graphics:GetDPR())
+                local dx,dy=(t.position.x-stick.px)/dpr,(t.position.y-stick.py)/dpr
+                local length=math.sqrt(dx*dx+dy*dy)
+                stick.mx=dx/math.max(45,length) stick.my=dy/math.max(45,length)
+                found=true
+                break
+            end
         end
     end
-    if not found then stick.id=-1 stick.mx=0 stick.my=0 end
-    local g=DungeonApp.game
+    if not found then ReleaseMovement() end
     g.touchActive=found g.stickX=stick.x g.stickY=stick.y g.stickMX=stick.mx g.stickMY=stick.my
 end
 
@@ -112,13 +139,13 @@ function HandleDungeonUpdate(eventType,eventData)
         if input:GetKeyDown(KEY_D) or input:GetKeyDown(KEY_RIGHT) then mx=mx+1 end
         if input:GetKeyDown(KEY_W) or input:GetKeyDown(KEY_UP) then my=my-1 end
         if input:GetKeyDown(KEY_S) or input:GetKeyDown(KEY_DOWN) then my=my+1 end
-    else stick.id=-1 end
+    end
     game:Update(dt,mx,my)
     if game.runTime<audioRunTime then SFX.Reset() end
     audioRunTime=game.runTime
     SFX.Update(game)
     hud:Update()
-    SaveProgress()
+    SaveProgress(dt)
     DungeonApp.onFrame(dt)
 end
 
@@ -136,18 +163,13 @@ function HandleDungeonKeyDown(eventType,eventData)
         if key==KEY_ESCAPE then game.state="title" end
     elseif game.state=="dead" or game.state=="win" then
         if key==KEY_R or key==KEY_RETURN then game:Start() end
-    elseif game.state=="talent" then
-        if key==KEY_1 then game:ChooseTalent(1) elseif key==KEY_2 then game:ChooseTalent(2) elseif key==KEY_3 then game:ChooseTalent(3) end
     elseif game.state=="shop" then
         if key==KEY_RETURN then game:BeginWave()
         elseif key==KEY_R then
             if not game:RerollShop() then hud:Notify("材料不足，或所有商品已锁定") end
         else
             local index=key==KEY_1 and 1 or key==KEY_2 and 2 or key==KEY_3 and 3 or key==KEY_4 and 4 or 0
-            if index>0 then
-                local ok,message=game:BuyShop(index)
-                hud:Notify(ok and "购入成功" or message)
-            end
+            if index>0 then hud:BuyShop(index) end
         end
     elseif game.state=="paused" then
         if key==KEY_ESCAPE or key==KEY_P then game.state="playing" end

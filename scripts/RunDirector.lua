@@ -111,7 +111,7 @@ function Director.Frame(g,dt)
         g:Banner("狂热就绪 · 按 E 引燃，留给密集敌群")
     end
     local elapsed=g.waveDuration-g.waveTime
-    if not g.bountySpawned and elapsed>=6 then
+    if g.wave%2==1 and not g.bountySpawned and elapsed>=6 then
         g.bountySpawned=true
         local x,y=g:FreeSpot()
         local e=g:SpawnEnemy("bat",x,y,false)

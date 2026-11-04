@@ -28,10 +28,6 @@ DungeonApp.onReady=function()
     local function enterShop(g)
         g.waveTime=0.001 g:Update(0.02,0,0)
         local menuSteps=0
-        while g.state=="talent" do
-            g:ChooseTalent(1)
-            menuSteps=menuSteps+1 assert(menuSteps<100,"test shop menu must terminate")
-        end
         assert(g.state=="shop","test fixture reaches real wave-end shop")
     end
     local function totalDps(g)
@@ -116,9 +112,9 @@ DungeonApp.onReady=function()
     assert(treasure,"bounty produces a treasure drop")
     Survival.Pickup(g,treasure)
     check(g.forgeVouchers==1 and treasure.collected,"actual bounty pickup grants one voucher")
-    local bank=g.gold local xp=g.player.xp
+    local bank=g.gold
     Survival.Pickup(g,treasure)
-    check(g.forgeVouchers==1 and g.gold==bank and g.player.xp==xp,
+    check(g.forgeVouchers==1 and g.gold==bank,
         "repeated pickup cannot duplicate voucher, materials or XP")
     check(not g:ClaimForge() and g.forgeVouchers==1,"claim is blocked during combat without consuming voucher")
     enterShop(g)
@@ -127,7 +123,7 @@ DungeonApp.onReady=function()
         and g.gold==bank and g.loadout[1].tier==2,"shop claim grants and fuses the starter without charging gold")
     check(not g:ClaimForge() and g.forgeClaimed==claimed+1,"empty voucher balance cannot repeat shop claim")
     -- A second bona fide treasure pickup supplies the full-inventory fixture.
-    g:BeginWave() g.enemies={}
+    g:BeginWave() enterShop(g) g:BeginWave() g.enemies={}
     g.waveTime=g.waveDuration-6 Director.Frame(g,0)
     bounty=nil
     for _,e in ipairs(g.enemies) do if e.bounty then bounty=e break end end
@@ -173,16 +169,16 @@ DungeonApp.onReady=function()
     Survival.EndWave(unswept)
     check(not abandoned.collected and unswept.forgeVouchers==0,
         "wave bell cannot automatically collect an abandoned treasure or grant its voucher")
-    check(ordinary.collected and unswept.lastWave.materials==5 and unswept.player.xp==2,
-        "wave bell continues collecting ordinary material rewards and their XP")
+    check(ordinary.collected and unswept.lastWave.materials==5 and unswept.player.xp==nil,
+        "wave bell continues collecting ordinary material rewards without upgrade rewards")
 
-    -- XP opens only one ordinary growth choice at the wave boundary.
+    -- Material collection never opens an attribute reward screen.
     for starter=1,3 do
         g=game(starter) g.player.x=400 g.player.y=250
-        g:GainXp(12)
-        check(g.state=="playing" and g.pendingLevels==1,"XP never interrupts combat with a contract screen")
+        Survival.Pickup(g,{kind="material",value=1,xp=100000,collected=false})
+        check(g.state=="playing" and g.pendingLevels==nil,"XP never interrupts combat with a contract screen")
         enterShop(g)
-        check(g.state=="shop" and g.pendingLevels==0,"one attribute choice returns directly to shop")
+        check(g.state=="shop" and g.pendingLevels==nil,"wave completion returns directly to shop without attribute choices")
         for kind=1,3 do
             g.shots={} g.melee={} g.enemies={}
             local w=weapon(kind,1)
@@ -222,7 +218,6 @@ DungeonApp.onReady=function()
     -- Additional regressions 196-200: routine-drop pressure must not bypass
     -- physical collection of a treasure or healing pickup.
     local capped=game()
-    capped.player.xpNext=1000000000 -- isolate pickup healing from level-up healing
     capped.player.hp=capped.player.maxHp-30
     local protectedTreasure=actualTreasure(capped)
     local protectedHeal={kind="heal",x=100,y=150,value=0,xp=0,collected=false}
@@ -233,8 +228,8 @@ DungeonApp.onReady=function()
         "drop pressure cannot remotely collect the oldest treasure or award its voucher")
     check(not protectedHeal.collected and capped.player.hp==hpBefore,
         "drop pressure cannot remotely drink a healing pickup")
-    check(capped.earnedGold>0 and capped.player.xp>0,
-        "ordinary material overflow still credits its real money and XP")
+    check(capped.earnedGold>0 and capped.player.xp==nil,
+        "ordinary material overflow credits money without restoring removed XP")
     check(#capped.drops<=100,"routine material overflow keeps the drop budget bounded")
     local protectedOnly=game()
     local extraTreasure=actualTreasure(protectedOnly)

@@ -9,9 +9,6 @@ local function game()
 end
 local function shop(g)
     g.waveTime=0.001 g:Update(0.02,0,0)
-    while g.state=="talent" do
-        g:ChooseTalent(1)
-    end
     assert(g.state=="shop","expected shop")
 end
 local function weapon(kind,tier,cost)
@@ -38,7 +35,7 @@ local b=g:SpawnEnemy("skeleton",580,320,false)
 local c=g:SpawnEnemy("skeleton",650,320,false)
 g:Shoot("arrow",0,10000) g:UpdateShots(0.5)
 check(a.dead and b.dead and not c.dead,"swept arrows hit exactly two targets")
-check(g.gold==0 and g.player.xp==0,"kills drop resources instead of instantly granting XP and gold")
+check(g.gold==0 and g.player.xp==nil,"kills drop resources instead of instantly granting XP and gold")
 local drops=#g.drops g:Kill(a)
 check(g.kills==2 and #g.drops==drops,"death callbacks cannot duplicate drops")
 g=game() g.player.x=160 g.player.y=312
@@ -53,10 +50,12 @@ g=game() g.player.explode=1
 a=g:SpawnEnemy("bat",450,320,false) b=g:SpawnEnemy("bat",480,320,false) c=g:SpawnEnemy("bat",510,320,false)
 g:DamageEnemy(a,10000,false)
 check(g.kills==3,"chain explosions award each enemy once")
-g=game() g:GainXp(200) g:PresentTalent()
-check(g.pendingLevels>0 and g.state=="playing","level choices are deferred while combat is active")
-local levels=g.pendingLevels shop(g)
-check(#g.talents==levels and g.pendingLevels==0,"all queued level choices are awarded before shop")
+g=game()
+local maxHp=g.player.maxHp
+for i=1,50 do Survival.Pickup(g,{kind="material",value=1,xp=10000,collected=false}) end
+check(g.state=="playing" and g.player.maxHp==maxHp and g.pendingLevels==nil,"material pickups never queue rewards or secretly grant level stats")
+shop(g)
+check(g.state=="shop" and g.choices==nil and g.talents==nil,"wave completion enters the shop directly without any reward choice")
 g=game() g.gold=29 g.player.harvest=4
 g.drops={{kind="material",x=80,y=140,value=5,xp=2,collected=false}}
 shop(g)
@@ -106,9 +105,6 @@ check(not g:SellWeapon(1) and g.gold==bank,"last weapon cannot be recycled")
 g=game()
 for wave=1,8 do
     g.waveTime=0.001 g:Update(0.02,0,0)
-    while g.state=="talent" do
-        g:ChooseTalent(1)
-    end
     if wave<8 then assert(g.state=="shop") g:BeginWave() end
 end
 check(g.state=="win" and g.wave==8 and g.save.clears==1,"eight timed waves lead to a single win settlement")

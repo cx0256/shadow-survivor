@@ -56,7 +56,36 @@ DungeonApp.onReady=function()
     g.starter=2
     check(not Survival.GenerateOffer(g,1).recipeHint,"another chosen core stops unusable starter recipe supply")
 
-    -- The guaranteed supply uses normal prices and respects existing locks.
+    -- Finishing the first wave with no drops still affords a real fusion.
+    for kind=1,3 do
+        local firstShop=game(kind)
+        Survival.EndWave(firstShop)
+        check(firstShop.gold==8 and firstShop.shop[1].cost==8,"first wave base payout covers starter offer")
+        check(firstShop.shop[1].starterDiscount and firstShop.shop[1].kind==kind,"starter offer matches equipped weapon")
+        check(firstShop:BuyShop(1) and firstShop.gold==0 and firstShop:RecipeStatus(kind).tier==2,
+            "starter purchase reaches tier II without a kill or voucher")
+    end
+    local hybrid=game(2)
+    Survival.EndWave(hybrid)
+    check(hybrid.shop[2].kind==1 and hybrid.shop[2].cost==8,"bow can buy a melee sidearm with the opening budget")
+    check(hybrid:BuyShop(2) and hybrid.gold==0 and not hybrid:BuyShop(1),
+        "the baseline budget buys melee cover or bow fusion")
+    check(hybrid:BeginWave() and #hybrid.loadout==2 and hybrid.loadout[1].kind==2
+        and hybrid.loadout[1].tier==1 and hybrid.loadout[2].kind==1,
+        "the sword and base bow both carry into wave two")
+    Survival.EndWave(hybrid)
+    check(hybrid.shop[1].kind==2 and hybrid.shop[1].cost==19,
+        "the hybrid route can still pursue its bow upgrade later at normal price")
+    local refreshedBow=game(2)
+    Survival.EndWave(refreshedBow)
+    check(refreshedBow:RerollShop() and not refreshedBow.shop[2].starterDiscount,
+        "refreshing does not regenerate the discounted melee sidearm")
+    local firstReroll=game(1)
+    Survival.EndWave(firstReroll)
+    check(firstReroll:RerollShop() and firstReroll.shop[1].cost==16 and not firstReroll.shop[1].starterDiscount,
+        "refreshing an unlocked starter offer does not repeat the discount")
+
+    -- Regular recipe supply uses normal prices and respects existing locks.
     for kind=1,3 do
         g=game(kind) g.state="shop" g.waveActive=false g.gold=1000
         local offer=Survival.GenerateOffer(g,1)

@@ -2,7 +2,7 @@
 ---@field Init fun(g: table)
 ---@field Start fun(g: table)
 ---@field BeginWave fun(g: table): boolean
----@field Buy fun(g: table, index: number): boolean, string
+---@field Buy fun(g: table, index: number): boolean, string, number?
 ---@field Reroll fun(g: table): boolean
 ---@field RerollCost fun(g: table): number
 ---@field Lock fun(g: table, index: number)
@@ -25,7 +25,10 @@ local Survival={}
 local Builds=require "Builds"
 ---@type RunDirectorAPI
 local Director=require "RunDirector"
+---@type CombatTrialsAPI
+local Trials=require "CombatTrials"
 Survival.Durations={20,25,30,35,40,45,50,60}
+local BASE_HARVEST=8
 -- Rotate through an encounter deck rather than rolling the same fodder type
 -- several times in a row. Later waves mix enemies with different jobs:
 -- bodies block space, bats flank, hunters commit to lanes, mages deny ground.
@@ -90,7 +93,9 @@ end
 ---@param g table
 function Survival.Start(g)
     local saved,starter,muted,role=g.save,g.starter,g.soundMuted,g.role
+    local saveDirty=g.saveDirty
     g:Init(saved)
+    g.saveDirty=saveDirty
     g.starter=starter
     g.role=role Builds.Apply(g)
     g.soundMuted=muted
@@ -114,6 +119,8 @@ function Survival.BeginWave(g)
     g.state="playing"
     g.enemies={} g.shots={} g.hazards={} g.drops={} g.effects={} g.floats={}
     g.melee={} g.particles={} g.combo=0 g.comboTime=0 g.shake=0 g.hitPulse=0
+    g.counterTime=0 g.counterRecovery=0 g.counterFlash=0
+    g.player.dashTime=0 g.player.dashingThisFrame=false g.player.dashRewarded=false
     for _,w in ipairs(g.loadout) do w.swing=false end
     g.spawnTimer=0.4
     g.spawnIndex=math.random(#SPAWN_DECKS[g.wave])-1
@@ -124,6 +131,7 @@ function Survival.BeginWave(g)
     for i,w in ipairs(g.loadout) do w.cd=(i-1)*0.08 end
     g:Banner("第 "..g.wave.." / 8 波 · 生存 "..g.waveDuration.." 秒")
     Director.BeginWave(g)
+    Trials.BeginWave(g)
     if g.wave==4 then
         g:SpawnEnemy("zombie",480,155,true).born=-0.25
         g:Banner("精英来袭 · 留意远程敌人")
@@ -170,7 +178,7 @@ function Survival.Pickup(g,item)
         end
         g:AddGold(item.value)
         g.waveIncome=g.waveIncome+item.value
-        g:GainXp(item.xp)
+        if item.treasure then Trials.CompletedBounty(g,item) end
     end
 end
 
@@ -222,7 +230,19 @@ function Survival.OpenShop(g)
     g.state="shop"
     g.rolls=0
     for i=1,4 do
-        if not g.shop[i] or not g.shop[i].locked or g.shop[i].sold then g.shop[i]=Survival.GenerateOffer(g,i) end
+        if not g.shop[i] or not g.shop[i].locked or g.shop[i].sold then
+            local offer=Survival.GenerateOffer(g,i)
+            if g.wave==1 and i==1 and offer.recipeHint and offer.type=="weapon" then
+                -- The first wave pays at least eight materials even with zero kills.
+                -- Rerolls use GenerateOffer directly and charge the usual price.
+                offer.cost=BASE_HARVEST
+                offer.starterDiscount=true
+            elseif g.wave==1 and g.starter==2 and i==2 then
+                -- Bow starters can spend the same opening budget on melee cover.
+                offer={type="weapon",kind=1,tier=1,cost=BASE_HARVEST,locked=false,sold=false,starterDiscount=true}
+            end
+            g.shop[i]=offer
+        end
     end
     g.shopRevision=g.shopRevision+1
 end
@@ -232,13 +252,14 @@ function Survival.EndWave(g)
     if not g.waveActive or g.state~="playing" then return end
     g.waveActive=false
     g.overdriveTime=0 g.frenzyCharge=0
+    g.counterTime=0 g.counterFlash=0
     -- A special treasure must be reached before the bell; ordinary materials
     -- still sweep automatically so routine collection does not become busywork.
     for _,item in ipairs(g.drops) do
         if item.kind=="material" and not item.treasure then Survival.Pickup(g,item) end
     end
     local interest=math.min(8,math.floor(g.gold/10))
-    local harvest=8+g.player.harvest
+    local harvest=BASE_HARVEST+g.player.harvest
     g:AddGold(interest+harvest)
     g.lastWave={kills=g.waveKills,materials=g.waveIncome,interest=interest,harvest=harvest}
     g.enemies={} g.shots={} g.hazards={} g.drops={} g.melee={} g.particles={}
@@ -247,7 +268,6 @@ function Survival.EndWave(g)
     if g.wave>=g.waveMax then g:Finish(true) return end
     Survival.OpenShop(g)
     g.returnState="shop"
-    if g.pendingLevels>0 then g.state="playing" g:PresentTalent() end
 end
 
 -- Spawn a readable group near the action, with a full 0.75 second warning.
@@ -322,6 +342,7 @@ function Survival.Frame(g,dt)
         end
         if d<22 then Survival.Pickup(g,item) table.remove(g.drops,i) end
     end
+    Trials.Frame(g,dt)
     if g.waveTime<=0 or (g.wave==8 and g.bossKilled) then Survival.EndWave(g) end
 end
 
@@ -342,9 +363,11 @@ function Survival.Buy(g,index)
     local offer=g.shop[index]
     if not offer or offer.sold then return false,"已售出" end
     if g.gold<offer.cost then return false,"材料不足" end
+    local fusedTier
     if offer.type=="weapon" then
         local ok,reason=Survival.AddWeapon(g,offer.kind,offer.tier)
         if not ok then return false,reason end
+        if reason=="合成" then fusedTier=offer.tier+1 end
     else
         local p=g.player
         for stat,value in pairs(offer.item.mods) do
@@ -359,7 +382,7 @@ function Survival.Buy(g,index)
     end
     g.gold=g.gold-offer.cost offer.sold=true offer.locked=false
     g.shopRevision=g.shopRevision+1
-    return true,"购买成功"
+    return true,"购买成功",fusedTier
 end
 
 ---@param g table

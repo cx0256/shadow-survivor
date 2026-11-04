@@ -8,6 +8,25 @@ T.Tiers={"I","II","III","IV"}
 T.Rarity={{153,164,160,255},{111,200,167,255},{181,150,219,255},{240,191,97,255}}
 T.Weapon={T.C.gold,T.C.jade,T.C.red}
 
+-- Keep Maker's default density scaling, but size touch targets in CSS pixels.
+-- A 42-unit button otherwise becomes only 28-31px tall on a phone.
+function T.TouchLayout()
+    return math.min(graphics:GetWidth(),graphics:GetHeight())/math.max(1,graphics:GetDPR())<600
+end
+
+function T.CssScale()
+    if UI.GetWidth()<=0 then return 1 end
+    return graphics:GetWidth()/math.max(1,graphics:GetDPR())/UI.GetWidth()
+end
+
+function T.TouchUnits(value)
+    return T.TouchLayout() and value/T.CssScale() or value
+end
+
+function T.ButtonHeight()
+    return math.max(42,T.TouchUnits(44))
+end
+
 function T.Label(value,size,c,align)
     local _,newlines=tostring(value):gsub("\n","")
     return UI.Label{text=tostring(value),fontSize=size or 14,fontColor=c or T.C.paper,
@@ -18,8 +37,8 @@ end
 
 function T.Button(value,action,width,id,variant)
     local primary=variant=="primary"
-    return UI.Button{id=id,text=value,onClick=action,width=width or "100%",minHeight=42,height=42,
-        flexShrink=1,fontSize=13,borderRadius=2,borderWidth=1,
+    return UI.Button{id=id,text=value,onClick=action,width=width or "100%",minHeight=T.ButtonHeight(),height=T.ButtonHeight(),
+        flexShrink=1,fontSize=T.TouchUnits(13),borderRadius=2,borderWidth=1,
         backgroundColor=primary and T.C.gold or T.C.raised,
         hoverBackgroundColor=primary and {239,205,144,255} or {43,53,56,255},
         pressedBackgroundColor=primary and {172,132,69,255} or T.C.ink,
@@ -44,9 +63,10 @@ end
 function T.ActionCard(children,action,props)
     props=props or {}
     local inset=props.padding or 12
-    props.paddingBottom=inset+42+(props.gap or 8)
+    local actionHeight=T.ButtonHeight()
+    props.paddingBottom=inset+actionHeight+(props.gap or 8)
     children[#children+1]=UI.Panel{position="absolute",left=inset,right=inset,bottom=inset,
-        height=42,flexShrink=0,children={action}}
+        height=actionHeight,flexShrink=0,children={action}}
     return T.Panel(children,props)
 end
 
