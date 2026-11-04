@@ -131,6 +131,12 @@ function Survival.BeginWave(g)
     g.player.x=480 g.player.y=380 g.player.invuln=1
     g.player.hp=math.min(g.player.maxHp,g.player.hp+g.player.maxHp*0.12)
     for i,w in ipairs(g.loadout) do w.cd=(i-1)*0.08 end
+    local core=g.recipeUnlocks[1]
+    if core and core.wave==g.wave-1 and g:RecipeStatus(core.kind).tier>0 then
+        g:Effect(g.player.x,g.player.y,150,"evolve")
+        g:Float(g.player.x,g.player.y-28,core.name.." · 成型",{255,211,114})
+        g.sfx[#g.sfx+1]={kind="evolve",x=g.player.x}
+    end
     g:Banner("第 "..g.wave.." / 8 波 · 生存 "..g.waveDuration.." 秒")
     Director.BeginWave(g)
     Trials.BeginWave(g)

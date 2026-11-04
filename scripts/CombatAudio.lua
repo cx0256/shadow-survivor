@@ -6,7 +6,7 @@ local audioScene=nil
 local sources={}
 ---@type table<string, Sound>
 local sounds={}
-local last={swing=-10,hit=-10,crit=-10}
+local last={swing=-10,hit=-10,crit=-10,evolve=-10}
 local cursor=0
 
 function Audio.Init()
@@ -22,6 +22,7 @@ function Audio.Init()
         hit=cache:GetResource("Sound","audio/combat/hit.wav"),
         crit=cache:GetResource("Sound","audio/combat/crit.wav"),
     }
+    sounds.evolve=sounds.crit
 end
 
 function Audio.Update(g)
@@ -45,7 +46,7 @@ function Audio.Update(g)
 end
 
 function Audio.Reset()
-    last={swing=-10,hit=-10,crit=-10}
+    last={swing=-10,hit=-10,crit=-10,evolve=-10}
 end
 
 function Audio.Stop()

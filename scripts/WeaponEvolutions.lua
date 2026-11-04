@@ -57,8 +57,6 @@ function Recipes.Evolve(g,kind)
     g.weaponEvolutions[kind]=true
     g.recipeRevision=g.recipeRevision+1 g.shopRevision=g.shopRevision+1
     g.recipeUnlocks[#g.recipeUnlocks+1]={kind=kind,name=status.name,time=g.runTime,wave=g.wave}
-    g:Banner(status.name.." · 本局同类武器已进化")
-    g:Effect(g.player.x,g.player.y,150,"evolve")
     return true,status.name.."已激活：武器与遗物保留，本局同类武器继承"
 end
 

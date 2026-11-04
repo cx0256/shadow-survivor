@@ -42,6 +42,27 @@ DungeonApp.onReady=function()
         g=prepared(kind) g.state="playing"
         check(not g:EvolveWeapon(kind) and g.forgeVouchers==1,"combat cannot evolve")
     end
+    for kind=1,3 do
+        local g=prepared(kind)
+        g.wave=7
+        check(g:EvolveWeapon(kind) and #g.effects==0 and #g.sfx==0,
+            "shop unlock waits for combat before issuing its audiovisual cue")
+        check(g:BeginWave() and #g.effects==1 and g.effects[1].kind=="evolve"
+            and g.effects[1].x==g.player.x and g.effects[1].y==g.player.y
+            and g.floats[1].text:find(Recipes.Definitions[kind].name,1,true)
+            and #g.sfx==1 and g.sfx[1].kind=="evolve",
+            "each core gets one cue at the actual combat spawn")
+        check(g.banner:find("最终波",1,true),"the evolution cue preserves the boss warning")
+    end
+    local cue=prepared(1)
+    check(cue:EvolveWeapon(1) and cue:BeginWave(),"an earlier shop unlock starts the next wave")
+    Survival.EndWave(cue) cue.sfx={}
+    check(cue:BeginWave() and #cue.effects==0 and #cue.floats==0 and #cue.sfx==0,
+        "an existing core does not replay its first-wave cue")
+    cue=prepared(1)
+    check(cue:EvolveWeapon(1),"fixture unlocks the sword core")
+    cue.loadout={{kind=2,tier=1,cd=0,angle=0}}
+    check(cue:BeginWave() and #cue.effects==0 and #cue.sfx==0,"an unequipped core does not announce activation")
     local g=prepared(1)
     for _,kind in ipairs({0,4,-1,1.5,"bow",false}) do
         check(not g:EvolveWeapon(kind) and g.forgeVouchers==1,"invalid recipe kind is safe")
