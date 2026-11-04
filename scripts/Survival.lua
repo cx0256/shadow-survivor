@@ -17,6 +17,7 @@
 ---@field Durations number[]
 ---@field ClaimForge fun(g: table, kind?: number): boolean, string
 ---@field GenerateOffer fun(g: table, index: number): table
+---@field RequiredMaxHp fun(item: table): number
 ---@field Spawn fun(g: table, dt: number)
 -- Short-run survivor rules. Combat stays in Dungeon; this module owns the
 -- wave/shop economy and the six independent weapon slots.
@@ -29,6 +30,7 @@ local Director=require "RunDirector"
 local Trials=require "CombatTrials"
 Survival.Durations={20,25,30,35,40,45,50,60}
 local BASE_HARVEST=8
+local MIN_MAX_HP=20
 -- Rotate through an encounter deck rather than rolling the same fodder type
 -- several times in a row. Later waves mix enemies with different jobs:
 -- bodies block space, bats flank, hunters commit to lanes, mages deny ground.
@@ -357,11 +359,20 @@ function Survival.AddWeapon(g,kind,tier)
     return true,"购入"
 end
 
+---@param item table
+function Survival.RequiredMaxHp(item)
+    local modifier=item.mods and item.mods.hp or 0
+    return modifier<0 and MIN_MAX_HP-modifier or 0
+end
+
 ---@param g table
 function Survival.Buy(g,index)
     if g.state~="shop" then return false,"商店未开放" end
     local offer=g.shop[index]
     if not offer or offer.sold then return false,"已售出" end
+    if offer.type=="item" and g.player.maxHp<Survival.RequiredMaxHp(offer.item) then
+        return false,"生命上限不足"
+    end
     if g.gold<offer.cost then return false,"材料不足" end
     local fusedTier
     if offer.type=="weapon" then
@@ -371,7 +382,7 @@ function Survival.Buy(g,index)
     else
         local p=g.player
         for stat,value in pairs(offer.item.mods) do
-            if stat=="hp" then p.maxHp=math.max(20,p.maxHp+value) p.hp=math.min(p.hp,p.maxHp)
+            if stat=="hp" then p.maxHp=math.max(MIN_MAX_HP,p.maxHp+value) p.hp=math.min(p.hp,p.maxHp)
             elseif stat=="heal" then p.hp=math.min(p.maxHp,p.hp+p.maxHp*value)
             elseif stat=="potion" then p.potions=p.potions+value
             else p[stat]=p[stat]+value end

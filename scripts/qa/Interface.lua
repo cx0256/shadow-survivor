@@ -62,6 +62,22 @@ DungeonApp.onReady=function()
         hud:Update()
     end
     check(#g.items==#Survival.Items,"all tradeoff item callbacks and fractional stat summaries render without errors")
+    local glass=Survival.Items[1]
+    local riskOffer={type="item",item=glass,cost=glass.cost,sold=false,locked=true}
+    g.shop[1]=riskOffer
+    g.player.maxHp=34 g.player.hp=33 g.shopRevision=g.shopRevision+1 hud:Update()
+    local riskButton=hud.root:FindById("buy-1")
+    check(riskButton.props.disabled and riskButton.props.text=="生命上限不足","the shop flags an unaffordable health cost")
+    local riskBudget,riskDamage,riskItemCount=g.gold,g.player.damage,#g.items
+    key(KEY_1)
+    check(hud.message=="生命上限不足" and g.gold==riskBudget and g.player.maxHp==34 and g.player.hp==33
+        and g.player.damage==riskDamage and #g.items==riskItemCount and not riskOffer.sold and riskOffer.locked,
+        "keyboard purchase cannot bypass health cost or partially mutate the offer")
+    g.player.maxHp=35 g.shopRevision=g.shopRevision+1 hud:Update()
+    check(not hud.root:FindById("buy-1").props.disabled,"the exact health threshold still permits purchase")
+    key(KEY_1)
+    check(riskOffer.sold and g.player.maxHp==20 and g.player.hp==20 and g.gold==riskBudget-glass.cost
+        and g.player.damage==riskDamage+glass.mods.damage,"valid purchases pay the full stated cost")
     g.loadout[1].tier=2 g.forgeVouchers=1 g.shopRevision=g.shopRevision+1 hud:Update()
     local evolve=hud.root:FindById("recipe-evolve-2")
     check(evolve and not evolve.props.disabled,"complete recipe offers an enabled native action")

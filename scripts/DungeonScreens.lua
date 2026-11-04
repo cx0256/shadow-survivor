@@ -2,6 +2,7 @@ local UI=require "urhox-libs/UI"
 local T=require "DungeonTheme"
 ---@type {Roles: table[], Merge: fun(g: table, index: number): boolean}
 local Builds=require "Builds"
+local Survival=require "Survival"
 ---@type DungeonModuleAPI
 local Dungeon=require "Dungeon"
 local Screens={}
@@ -134,6 +135,8 @@ function Screens.Shop(hud)
         local title=weapon and T.WeaponName(offer.kind,offer.tier) or offer.item.name
         local statsLine="局内道具 · 购买后即刻生效"
         local outcome=""
+        local requiredHp=not weapon and Survival.RequiredMaxHp(offer.item) or 0
+        local blocked=requiredHp>g.player.maxHp
         if weapon then
             local stats=g:WeaponStats({kind=offer.kind,tier=offer.tier})
             statsLine=string.format("伤害 %.0f   /   间隔 %.2fs   /   射程 %.0f",stats.damage,stats.cooldown,stats.range)
@@ -148,12 +151,16 @@ function Screens.Shop(hud)
                 end
             end
             if not merge then outcome=#g.loadout<6 and "购买后占用 1 个武器槽" or "武器槽已满：先合成或回收" end
+        elseif requiredHp>0 then
+            outcome=blocked and ("需要至少 "..requiredHp.." 生命上限")
+                or ("购买后生命上限 "..(g.player.maxHp+offer.item.mods.hp))
         end
-        local buyText=offer.sold and "已购入" or g.gold<offer.cost and ("还差 "..(offer.cost-g.gold).." 材料") or ("购买 "..offer.cost.."  ["..i.."]")
+        local buyText=offer.sold and "已购入" or blocked and "生命上限不足"
+            or g.gold<offer.cost and ("还差 "..(offer.cost-g.gold).." 材料") or ("购买 "..offer.cost.."  ["..i.."]")
         local buy=T.Button(buyText,function()
             hud:BuyShop(index)
-        end,"70%","buy-"..i,g.gold>=offer.cost and not offer.sold and "primary" or nil)
-        buy:SetDisabled(offer.sold)
+        end,"70%","buy-"..i,g.gold>=offer.cost and not offer.sold and not blocked and "primary" or nil)
+        buy:SetDisabled(offer.sold or blocked)
         local lock=T.Button(offer.locked and "◆ 锁定" or "锁定",function() g:LockOffer(index) end,"28%","lock-"..i)
         lock:SetDisabled(offer.sold)
         local starter=offer.starterDiscount and g.wave==1
