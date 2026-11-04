@@ -26,6 +26,8 @@ function HUD:Init(game)
     self.comboLabel=T.Label("",small and T.TouchUnits(10) or 12,C.gold)
     self.objective=T.Label("",small and T.TouchUnits(10) or 12,C.jade)
     self.objective:SetStyle({id="trial-hud",width="100%"})
+    self.exitButton=T.Button(small and "撤离本波" or "X  撤离本波",function() game:RequestExit() end,
+        "100%","trial-exit","primary")
     self.weaponLabel=T.Label("",T.TouchUnits(10),C.muted)
     self.weaponLabel:SetStyle({maxWidth=small and "100%" or 240})
     self.hint=T.Label("",11,C.muted)
@@ -50,7 +52,7 @@ function HUD:Init(game)
     local healthContent={self.health,self.hp}
     if small then healthContent[#healthContent+1]=self.weaponLabel end
     self.leftHUD=T.Panel(healthContent,{id="health-hud",width=small and "40%" or 215,padding=8,gap=3,borderColor={93,59,48,255}})
-    self.rightHUD=T.Panel({self.stage,self.record,self.comboLabel,self.objective},{id="wave-hud",width=small and "58%" or 268,padding=8,gap=3,borderColor={97,83,57,255}})
+    self.rightHUD=T.Panel({self.stage,self.record,self.comboLabel,self.objective,self.exitButton},{id="wave-hud",width=small and "58%" or 268,padding=8,gap=3,borderColor={97,83,57,255}})
     self.top=UI.Panel{position="absolute",top=8,left=8,right=8,flexDirection="row",justifyContent="space-between",alignItems="flex-start",gap=6,
         pointerEvents="box-none",children={self.leftHUD,self.rightHUD}}
     local bottomContent={}
@@ -208,6 +210,7 @@ function HUD:Update()
         objective=T.TouchLayout() and "左下拖动躲避\n武器会自动攻击" or "WASD / 方向键移动\n武器会自动攻击"
     end
     self.objective:SetText(objective)
+    self.exitButton:SetVisible(Trials.CanExit(g))
     self.muteButton:SetText(g.soundMuted and (compact and "开声" or "开声音") or "静音")
     local recipes={}
     local slashProgress=g.weaponEvolutionProgress and g.weaponEvolutionProgress[1] or 0

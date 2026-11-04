@@ -240,7 +240,7 @@ function Screens.Pause(hud)
     local recipes=unlockedRecipes(g)
     return {T.Panel({T.Label("时间停在这里，阴影也会等待。",20,C.paper),
         T.Label("WASD / 方向键：移动    空格：翻滚\nJ：旋风    K：剑气    F：药水\nE：击杀蓄能后引燃，留给密集敌群\n1 / 2 / 3 / 4：商店购买    Enter：开始下一波",14,C.muted),
-        T.Label("翻滚躲过实际攻击后，2 秒内的下一次武器攻击获得 1.8 倍伤害。\n单数波追宝；第 2 / 4 / 6 波进入光圈，累计站稳 2.6 秒封印裂隙。\n完成目标后，先走出撤离外圈，再回内圈停留 0.6 秒即可结束本波。\n也可以留在战场继续收集材料；撤离时未拾取的宝箱会消失。",13,C.jade),
+        T.Label("翻滚躲过实际攻击后，2 秒内的下一次武器攻击获得 1.8 倍伤害。\n单数波追宝；第 2 / 4 / 6 波进入光圈，累计站稳 2.6 秒封印裂隙。\n完成目标后，可在圈内点「撤离本波」或按 X，站稳 0.6 秒即可撤离。\n也可以留在战场继续收集材料；撤离时未拾取的宝箱会消失。",13,C.jade),
         T.Label("本局武器进化\n"..(#recipes>0 and table.concat(recipes," / ") or "尚未激活；在商店查看配方进度"),13,#recipes>0 and C.jade or C.muted),
         T.Rule(),T.Label("触屏：屏幕左下空白区域拖动移动，底部按钮施放技能。",13,C.muted),
         T.Button(g.soundMuted and "开启音效  [M]" or "关闭音效  [M]",function()

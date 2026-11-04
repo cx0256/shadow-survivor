@@ -177,6 +177,7 @@ function HandleDungeonKeyDown(eventType,eventData)
         if key==KEY_SPACE then game:Cast("dash") elseif key==KEY_J then game:Cast("whirl")
         elseif key==KEY_K then game:Cast("blade") elseif key==KEY_F then game:Cast("potion")
         elseif key==KEY_E then game:Cast("burst")
+        elseif key==KEY_X then game:RequestExit()
         elseif key==KEY_ESCAPE or key==KEY_P then game.state="paused" end
     end
 end

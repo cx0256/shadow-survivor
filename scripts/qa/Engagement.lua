@@ -69,17 +69,7 @@ local function objective(g)
     if g.testRaider and g.trial then
         local trial=g.trial
         if trial.state=="active" then return trial.x,trial.y end
-        if trial.exit and not trial.exit.used then
-            local gate=trial.exit
-            if gate.armed then return gate.x,gate.y end
-            local dx,dy=unit(p.x-gate.x,p.y-gate.y)
-            if dx==0 and dy==0 then dx=1 end
-            for i=0,15 do
-                local a=math.atan(dy,dx)+i*math.pi/8
-                local x,y=gate.x+math.cos(a)*90,gate.y+math.sin(a)*90
-                if not g:HitsWall(x,y,p.r) then return x,y end
-            end
-        end
+        if not g.testStay and trial.exit and not trial.exit.used then return trial.exit.x,trial.exit.y end
     end
     return tx,ty
 end
@@ -228,23 +218,35 @@ DungeonApp.onReady=function()
         for _,strategy in ipairs(strategies) do
             if runs>=maxRuns then break end
             assert(type(seed)=="number" and seed==seed,"engagement seed is numeric")
-            assert(strategy=="circle" or strategy=="eager" or strategy=="adaptive" or strategy=="raider","known engagement strategy")
+            assert(strategy=="circle" or strategy=="eager" or strategy=="adaptive" or strategy=="raider" or strategy=="stay",
+                "known engagement strategy")
             math.randomseed(seed)
             local g=Dungeon.New({})
             g:SetWeapon(starter) g.role=role g:Start()
-            g.testRaider=strategy=="raider"
+            g.testRaider=strategy=="raider" or strategy=="stay"
+            g.testStay=strategy=="stay"
             local t={seed=seed,strategy=strategy,starter=starter,role=role,
-                damageTaken=0,potions=0,skillsCast=0,forgeClaimed=0,firstKillAt=-1}
+                damageTaken=0,potions=0,skillsCast=0,forgeClaimed=0,firstKillAt=-1,trialExits=0,postCoreExits=0}
+            local materialsAtCore
             t.comparison=strategy=="raider" and "visible objectives+exit+adaptive actions"
+                or strategy=="stay" and "visible objectives+stay+adaptive actions"
                 or strategy=="adaptive" and "movement+E+J+K+F+dash"
                 or strategy=="eager" and "circle+E" or "circle"
             local frames,menus=0,0
             while g.state~="dead" and g.state~="win" and frames<maxFrames do
                 invariant(g)
-                if g.state=="shop" then shop(g,t,config.recipes~=false) menus=menus+1
+                if g.state=="shop" then
+                    if g.trial.exit and g.trial.exit.used then
+                        t.trialExits=t.trialExits+1
+                        if materialsAtCore then t.postCoreExits=t.postCoreExits+1 end
+                    end
+                    shop(g,t,config.recipes~=false) menus=menus+1
+                    if not materialsAtCore and #g.recipeUnlocks>0 then materialsAtCore=g.earnedGold end
                 elseif g.state=="playing" then
                     local dx,dy
-                    if strategy=="adaptive" or strategy=="raider" then dx,dy=adaptive(g) actions(g,t)
+                    if strategy=="adaptive" or g.testRaider then
+                        if strategy=="raider" then g:RequestExit() end
+                        dx,dy=adaptive(g) actions(g,t)
                     else
                         dx,dy=circle(g)
                         if strategy=="eager" and g.frenzyCharge>=8 and (g.burstRecovery or 0)<=0 then
@@ -275,6 +277,8 @@ DungeonApp.onReady=function()
             t.recipeUnlocks=g.recipeUnlocks or {}
             t.recipeStats=g.recipeStats or {}
             t.firstRecipeUnlockAt=#t.recipeUnlocks>0 and t.recipeUnlocks[1].time or -1
+            t.postCoreMaterials=materialsAtCore and g.earnedGold-materialsAtCore or -1
+            assert(strategy~="stay" or t.trialExits==0,"staying never triggers an exit")
             print("[EngagementRun] "..cjson.encode(t))
             assert(g.state=="dead" or g.state=="win","engagement run must terminate within frame budget")
             runs=runs+1

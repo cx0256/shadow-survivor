@@ -59,18 +59,14 @@ local function drawTrial(vg,g)
         for _,drop in ipairs(g.drops) do
             if drop.treasure and not drop.collected then treasure=true break end
         end
-        local c=treasure and {230,173,86} or gate.armed and {142,225,197} or {190,169,119}
-        if not gate.armed then
-            ring(vg,gate.x,gate.y,gate.armRadius,{c[1],c[2],c[3],145},2)
-        end
+        local c=treasure and {230,173,86} or {142,225,197}
         circle(vg,gate.x,gate.y,gate.r,{c[1],c[2],c[3],22})
         ring(vg,gate.x,gate.y,gate.r,{c[1],c[2],c[3],180},2)
         ring(vg,gate.x,gate.y,gate.r-8+math.sin(g.time*3)*2,{c[1],c[2],c[3],90},1)
         line(vg,gate.x-8,gate.y+4,gate.x,gate.y-5,c,2)
         line(vg,gate.x,gate.y-5,gate.x+8,gate.y+4,c,2)
-        local label=gate.armed and "内圈停留0.6秒 · 结束本波" or "先走出外圈，再回内圈"
-        local labelRadius=gate.armed and gate.r or gate.armRadius
-        text(vg,math.max(165,math.min(795,gate.x)),math.max(112,gate.y-labelRadius-14),label,13,c)
+        local label=gate.departing and "正在撤离 · 留在圈内" or "撤离圈 · 可提前结束本波"
+        text(vg,math.max(165,math.min(795,gate.x)),math.max(112,gate.y-gate.r-14),label,13,c)
         if treasure then text(vg,gate.x,math.min(514,gate.y+gate.r+14),"宝箱尚未拾取",12,{235,181,100}) end
     end
 end

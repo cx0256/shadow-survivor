@@ -62,26 +62,30 @@ check(g.player.hp==62 and g.frenzyCharge==8 and g.burstRecovery==4,
 check(g.lastTrial and g.lastTrial.wave==2 and g.lastTrial.kind=="rift",
     "completion records the actual wave and objective kind")
 local exit=g.trial.exit
-check(exit and exit.armRadius>exit.r and not exit.armed and not exit.used and g.waveTime>0,
-    "winning opens an unarmed exit without ending combat under the player")
-check(Trials.Status(g):find("外圈",1,true)~=nil,"unarmed exit instructions name the actual outer arming ring")
+check(exit and not exit.departing and not exit.used and g.waveTime>0 and Trials.CanExit(g),
+    "winning opens an optional exit without ending combat under the player")
+check(Trials.Status(g):find("继续战斗",1,true)~=nil,"exit instructions present the choice to stay")
 gold=g.gold income=g.waveIncome
 advance(g,1)
 check(g.gold==gold and g.waveIncome==income and g.forgeVouchers==1 and g.trialWins==1 and g.player.hp==62,
     "remaining at a completed rift cannot repeat any reward")
-check(not exit.armed and g.waveTime>0,"lingering in the exit does not accidentally leave the wave")
-g.player.x=exit.x+exit.armRadius-1 g.player.y=exit.y Trials.Frame(g,0.034)
-check(not exit.armed,"walking within the seventy-pixel exit safety ring does not arm it")
-g.player.x=exit.x+exit.armRadius+1 Trials.Frame(g,0.034)
-check(exit.armed and g.waveTime>0,"leaving the safety ring arms the optional exit while combat continues")
-check(Trials.Status(g):find("内圈",1,true)~=nil,"armed exit instructions name the inner return ring")
+check(not exit.departing and g.waveTime>0,"lingering in the exit does not end the wave")
+g.player.x=exit.x+31 g.player.y=exit.y
+check(not Trials.CanExit(g) and not Trials.RequestExit(g),"requests from outside the ring are ignored")
+g.player.x=exit.x
+advance(g,0.7)
+check(g.waveTime>0 and not exit.departing,"re-entering and staying without a request keeps combat active")
+check(Trials.RequestExit(g) and not Trials.RequestExit(g),"one explicit request starts the countdown")
+advance(g,0.3)
 g.player.x=exit.x+31 Trials.Frame(g,0.034)
-check(g.waveTime>0,"returning near but outside the exit does not end combat")
+check(not exit.departing and exit.progress==0,"leaving the ring cancels the pending exit")
+g.player.x=exit.x
+check(Trials.RequestExit(g),"an interrupted exit can be requested again")
 local remaining=g.waveTime
-g.player.x=exit.x g.player.y=exit.y Trials.Frame(g,0.034)
-check(g.waveTime>0,"passing through an armed exit cannot immediately end combat")
+advance(g,0.3)
+check(g.waveTime>0,"requesting departure does not immediately end combat")
 advance(g,0.61)
-check(g.waveTime==0 and close(g.trialTimeSaved,remaining),"deliberate re-entry ends the timer and records saved combat time")
+check(g.waveTime==0 and close(g.trialTimeSaved,remaining),"explicit departure ends the timer and records saved combat time")
 Trials.Frame(g,0.034)
 check(close(g.trialTimeSaved,remaining),"repeated exit contact cannot double count time saved")
 
@@ -156,7 +160,7 @@ check(not Trials.CompletedBounty(g,treasure) and g.trialWins==0 and not g.trial.
 Survival.Pickup(g,treasure)
 check(g.trial.state=="won" and g.trialWins==1 and g.forgeVouchers==1 and g.gold==10,
     "real bounty pickup grants its existing reward once and opens the objective exit")
-check(g.trial.exit and not g.trial.exit.armed and g.waveTime>0,
+check(g.trial.exit and not g.trial.exit.departing and g.waveTime>0,
     "collecting a treasure cannot immediately extract the player")
 gold=g.gold
 check(not Trials.CompletedBounty(g,treasure) and g.trialWins==1 and g.gold==gold and g.forgeVouchers==1,
@@ -164,7 +168,7 @@ check(not Trials.CompletedBounty(g,treasure) and g.trialWins==1 and g.gold==gold
 local untouched={kind="material",treasure=true,collected=false,value=10,xp=20,x=400,y=200}
 g.drops={untouched}
 local guidance=Trials.Status(g)
-check(guidance:find("宝箱",1,true)~=nil and guidance:find("外圈",1,true)~=nil,
+check(guidance:find("宝箱",1,true)~=nil and guidance:find("可撤离",1,true)~=nil,
     "a remaining treasure warns the player while preserving exit instructions")
 Trials.Frame(g,0.034)
 check(not untouched.collected,"exit guidance never remotely collects special treasure")

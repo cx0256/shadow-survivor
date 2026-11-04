@@ -124,6 +124,7 @@ function Dungeon:SellWeapon(index) return Survival.Sell(self,index) end
 function Dungeon:WeaponStats(w) return Survival.Stats(self,w,Dungeon.Weapons) end
 function Dungeon:WeaponCount(kind) return Survival.Count(self,kind) end
 function Dungeon:ClaimForge(kind) return Survival.ClaimForge(self,kind) end
+function Dungeon:RequestExit() return Trials.RequestExit(self) end
 function Dungeon:RecipeStatus(kind) return WeaponEvolutions.Status(self,kind) end
 function Dungeon:EvolveWeapon(kind) return WeaponEvolutions.Evolve(self,kind) end
 

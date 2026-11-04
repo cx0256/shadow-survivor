@@ -3,6 +3,8 @@
 ---@field Init fun(g: table)
 ---@field BeginWave fun(g: table)
 ---@field CompletedBounty fun(g: table, item: table): boolean
+---@field CanExit fun(g: table): boolean
+---@field RequestExit fun(g: table): boolean
 ---@field Frame fun(g: table, dt: number)
 ---@field Status fun(g: table): string
 local Trials={}
@@ -15,10 +17,23 @@ function Trials.BeginWave(g)
 end
 local function complete(g,x,y)
     local t=g.trial
-    t.state="won" t.exit={x=x,y=y,r=30,armRadius=70,armed=false,used=false,progress=0}
+    t.state="won" t.exit={x=x,y=y,r=30,departing=false,used=false,progress=0}
     g.trialWins=g.trialWins+1
     g.lastTrial={wave=g.wave,kind=t.kind,time=g.runTime}
     g:Banner("目标完成 · 捷径开启；也可留下继续收集")
+end
+local function insideGate(g,gate)
+    return (g.player.x-gate.x)^2+(g.player.y-gate.y)^2<=gate.r^2
+end
+function Trials.CanExit(g)
+    local gate=g.trial and g.trial.exit
+    return g.state=="playing" and g.waveActive and g.waveTime>0 and gate~=nil
+        and not gate.used and not gate.departing and insideGate(g,gate)
+end
+function Trials.RequestExit(g)
+    if not Trials.CanExit(g) then return false end
+    g.trial.exit.departing=true
+    return true
 end
 function Trials.CompletedBounty(g,item)
     local t=g.trial
@@ -77,23 +92,21 @@ function Trials.Frame(g,dt)
         elseif t.remaining<=0 then t.state="expired" g:Banner("裂隙消散 · 继续生存仍可过关") end
     end
     local gate=t.exit
-    if gate and not gate.used then
-        local d2=(g.player.x-gate.x)^2+(g.player.y-gate.y)^2
-        if not gate.armed then
-            if d2>gate.armRadius^2 then gate.armed=true end
-        elseif d2<=gate.r^2 then
+    if gate and gate.departing and not gate.used then
+        if insideGate(g,gate) then
             gate.progress=gate.progress+dt
             if gate.progress>=0.6 then
                 gate.used=true g.trialTimeSaved=g.trialTimeSaved+g.waveTime g.waveTime=0
             end
-        else gate.progress=0 end
+        else gate.departing=false gate.progress=0 end
     end
 end
 function Trials.Status(g)
     local t=g.trial
     if not t or t.state=="inactive" then return "决战 · 击败首领或坚持到时限" end
     if t.exit then
-        local instruction=t.exit.armed and "回内圈停留0.6秒撤离" or "先走出外圈，再回内圈"
+        if t.exit.departing then return "正在撤离 · 留在圈内" end
+        local instruction=Trials.CanExit(g) and "可撤离，也可继续战斗" or "进入撤离圈，可提前结束本波"
         for _,drop in ipairs(g.drops) do
             if drop.treasure and not drop.collected then return instruction.."\n撤离前记得拾取宝箱" end
         end

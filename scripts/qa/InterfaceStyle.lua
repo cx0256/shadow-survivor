@@ -3,6 +3,7 @@
 require "main"
 local UI=require "urhox-libs/UI"
 local T=require "DungeonTheme"
+local Survival=require "Survival"
 local checks=0
 local function check(ok,message) assert(ok,message) checks=checks+1 end
 local function touchTarget(r,id)
@@ -347,6 +348,28 @@ DungeonApp.onReady=function()
             "the combat HUD carries the active core into the next wave")
     end
     print("[P02RecipeDiscovery] three recipe shortcuts activated by touch")
+    g:Start()
+    local exitButton=hud.root:FindById("trial-exit")
+    hud:Update() UI.Layout()
+    check(not exitButton:IsVisible(),"there is no exit control before completing an objective")
+    Survival.Pickup(g,{kind="material",value=10,x=g.player.x,y=g.player.y,treasure=true})
+    check(g.trial.exit~=nil,
+        "collecting the objective creates an exit at the player")
+    hud:Update() UI.Layout()
+    local exitBounds=exitButton:GetAbsoluteLayoutForHitTest()
+    local bottom=hud.bottom:GetAbsoluteLayoutForHitTest()
+    check(exitButton:IsVisible() and exitBounds.x>=0 and exitBounds.x+exitBounds.w<=UI.GetWidth()+1
+        and exitBounds.y>=0 and exitBounds.y+exitBounds.h<=bottom.y,
+        "the contextual exit control fits above combat skills")
+    touchTarget(exitBounds,"trial-exit")
+    for _=1,20 do g:Update(0.034,0,0) end
+    check(g.state=="playing","standing in the ring without touching the button keeps combat active")
+    tap("trial-exit")
+    hud:Update()
+    check(g.trial.exit.departing and not exitButton:IsVisible(),"touching Exit starts the countdown once")
+    for _=1,20 do g:Update(0.034,0,0) end
+    check(g.state=="shop" and g.trial.exit.used and g.trialTimeSaved>0,"holding position completes the real exit path")
+    print("[ExplicitExitChecks] touch requires deliberate exit")
     g.state="title" hud:Update()
     print("[UIStyleTests] "..checks.." native layout and state checks passed")
 end
